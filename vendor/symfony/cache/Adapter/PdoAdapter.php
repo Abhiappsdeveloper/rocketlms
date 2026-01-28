@@ -89,18 +89,28 @@ class PdoAdapter extends AbstractAdapter implements PruneableInterface
         parent::__construct($namespace, $defaultLifetime);
     }
 
+    public static function createConnection(#[\SensitiveParameter] string $dsn, array $options = []): \PDO|string
+    {
+        if ($options['lazy'] ?? true) {
+            return $dsn;
+        }
+
+        $pdo = new \PDO($dsn);
+        $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+        return $pdo;
+    }
+
     /**
      * Creates the table to store cache items which can be called once for setup.
      *
      * Cache ID are saved in a column of maximum length 255. Cache data is
      * saved in a BLOB.
      *
-     * @return void
-     *
      * @throws \PDOException    When the table already exists
      * @throws \DomainException When an unsupported PDO driver is used
      */
-    public function createTable()
+    public function createTable(): void
     {
         $sql = match ($driver = $this->getDriver()) {
             // We use varbinary for the ID column because it prevents unwanted conversions:
@@ -108,7 +118,7 @@ class PdoAdapter extends AbstractAdapter implements PruneableInterface
             // - trailing space removal
             // - case-insensitivity
             // - language processing like é == e
-            'mysql' => "CREATE TABLE $this->table ($this->idCol VARBINARY(255) NOT NULL PRIMARY KEY, $this->dataCol MEDIUMBLOB NOT NULL, $this->lifetimeCol INTEGER UNSIGNED, $this->timeCol INTEGER UNSIGNED NOT NULL) COLLATE utf8mb4_bin, ENGINE = InnoDB",
+            'mysql' => "CREATE TABLE $this->table ($this->idCol VARBINARY(255) NOT NULL PRIMARY KEY, $this->dataCol MEDIUMBLOB NOT NULL, $this->lifetimeCol INTEGER UNSIGNED, $this->timeCol INTEGER UNSIGNED NOT NULL), ENGINE = InnoDB",
             'sqlite' => "CREATE TABLE $this->table ($this->idCol TEXT NOT NULL PRIMARY KEY, $this->dataCol BLOB NOT NULL, $this->lifetimeCol INTEGER, $this->timeCol INTEGER NOT NULL)",
             'pgsql' => "CREATE TABLE $this->table ($this->idCol VARCHAR(255) NOT NULL PRIMARY KEY, $this->dataCol BYTEA NOT NULL, $this->lifetimeCol INTEGER, $this->timeCol INTEGER NOT NULL)",
             'oci' => "CREATE TABLE $this->table ($this->idCol VARCHAR2(255) NOT NULL PRIMARY KEY, $this->dataCol BLOB NOT NULL, $this->lifetimeCol INTEGER, $this->timeCol INTEGER NOT NULL)",
@@ -314,7 +324,17 @@ class PdoAdapter extends AbstractAdapter implements PruneableInterface
             $insertStmt->bindValue(':time', $now, \PDO::PARAM_INT);
         }
 
+        if ('sqlsrv' === $driver) {
+            $dataStream = fopen('php://memory', 'r+');
+        }
         foreach ($values as $id => $data) {
+            if ('sqlsrv' === $driver) {
+                rewind($dataStream);
+                fwrite($dataStream, $data);
+                ftruncate($dataStream, \strlen($data));
+                rewind($dataStream);
+                $data = $dataStream;
+            }
             try {
                 $stmt->execute();
             } catch (\PDOException $e) {
@@ -338,17 +358,17 @@ class PdoAdapter extends AbstractAdapter implements PruneableInterface
     /**
      * @internal
      */
-    protected function getId(mixed $key): string
+    protected function getId(mixed $key, ?string $namespace = null): string
     {
         if ('pgsql' !== $this->getDriver()) {
-            return parent::getId($key);
+            return parent::getId($key, $namespace);
         }
 
         if (str_contains($key, "\0") || str_contains($key, '%') || !preg_match('//u', $key)) {
             $key = rawurlencode($key);
         }
 
-        return parent::getId($key);
+        return parent::getId($key, $namespace);
     }
 
     private function getConnection(): \PDO
