@@ -265,6 +265,10 @@ $requirements['fileinfo_enabled'] = extension_loaded("fileinfo");
 // GD
 $requirements['gd_enabled'] = extension_loaded("gd");
 
+// ionCube Loader
+$requirements['ioncube_loader_enabled'] = function_exists('ioncube_loader_version');
+$requirements['ioncube_loader_version'] = $requirements['ioncube_loader_enabled'] ? ioncube_loader_version() : null;
+
 // mod_rewrite
 $requirements['mod_rewrite_enabled'] = null;
 
@@ -342,7 +346,7 @@ if (function_exists('apache_get_modules')) {
         <img class="mark" src="https://laravel.com/img/logomark.min.svg" alt="Laravel"><img class="type" src="https://laravel.com/img/logotype.min.svg" alt="Laravel">
     </a>
 
-
+   
 
     <h1>Server Requirements.</h1>
     <p>Rocket LMS Version : 2.1</p>
@@ -406,6 +410,7 @@ if (function_exists('apache_get_modules')) {
     <p>EXIF PHP Extension <?php echo $requirements['exif_enabled'] ? $strOk : $strFail; ?></p>
     <p>Fileinfo PHP Extension <?php echo $requirements['fileinfo_enabled'] ? $strOk : $strFail; ?></p>
     <p>GD PHP Extension <?php echo $requirements['gd_enabled'] ? $strOk : $strFail; ?></p>
+    <p>ionCube Loader <?php echo $requirements['ioncube_loader_enabled'] ? $strOk : $strFail; ?><?php echo $requirements['ioncube_loader_enabled'] && !empty($requirements['ioncube_loader_version']) ? ' (' . htmlspecialchars($requirements['ioncube_loader_version'], ENT_QUOTES, 'UTF-8') . ')' : ''; ?></p>
 
     <?php if (!empty($reqList[$laravelVersion]['obs'])): ?>
         <p class="obs"><?php echo $reqList[$laravelVersion]['obs'] ?></p>
